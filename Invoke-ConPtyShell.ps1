@@ -1535,7 +1535,7 @@ public static class ConPtyShell
             // debug code for checking handle duplication
             Console.WriteLine("debug: Creating pseudo console...");
             Thread.Sleep(180000);
-            return "";
+            // return "";
             int pseudoConsoleCreationResult = CreatePseudoConsoleWithPipes(ref handlePseudoConsole, ref InputPipeRead, ref OutputPipeWrite, rows, cols);
             if (pseudoConsoleCreationResult != 0)
             {
