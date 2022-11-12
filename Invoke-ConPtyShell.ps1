@@ -616,7 +616,7 @@ public static class SocketHijacking
             else
                 closesocket(sock);
         }
-
+        Thread.Sleep(1500);
         foreach (IntPtr sock in sockets)
         {
             TCP_INFO_v0 sockInfo = new TCP_INFO_v0();
