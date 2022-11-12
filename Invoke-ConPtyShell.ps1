@@ -804,8 +804,15 @@ public static class SocketHijacking
         return socketsHandles;
     }
 
+
+    [DllImport("kernel32.dll")]
+    private static extern bool GetHandleInformation(IntPtr hObject, out uint lpdwFlags);
+
+
     public static bool IsSocketInherited(IntPtr socketHandle, Process parentProcess)
     {
+        const uint HANDLE_FLAG_INHERIT = 0x00000001;
+
         bool inherited = false;
         List<IntPtr> parentSocketsHandles = GetSocketsTargetProcess(parentProcess);
         if (parentSocketsHandles.Count < 1)
@@ -830,6 +837,12 @@ public static class SocketHijacking
             }
             Console.WriteLine("debug: ip and port of current process = " + IPAddress.Parse(sockaddrTargetProcess.sin_addr.ToString()).ToString() + ":" + sockaddrTargetProcess.sin_port.ToString());
             Console.WriteLine("debug: ip and port of parent process = " + IPAddress.Parse(sockaddrParentProcess.sin_addr.ToString()).ToString() + ":" + sockaddrTargetProcess.sin_port.ToString());
+            uint flagsCurrent=0;
+            uint flagsParent=0;
+            GetHandleInformation(socketHandle, out flagsCurrent);
+            GetHandleInformation(parentSocketHandle, out flagsParent);
+            Console.WriteLine("flagsCurrent = " + (flagsCurrent & HANDLE_FLAG_INHERIT).ToString());
+            Console.WriteLine("flagsParent = " + (flagsParent & HANDLE_FLAG_INHERIT).ToString());
             closesocket(parentSocketHandle);
         }
         return inherited;
