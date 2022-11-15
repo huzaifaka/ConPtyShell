@@ -1547,6 +1547,8 @@ public static class ConPtyShell
                 if (parentProcess != null) grandParentProcess = ParentProcessUtilities.GetParentProcess(parentProcess.Handle);
                 shellSocket = SocketHijacking.DuplicateInheritedSocket(currentProcess, parentProcess, grandParentProcess, out parentSocketInherited, out grandParentSocketInherited, ref IsSocketOverlapped);
                 if (shellSocket == IntPtr.Zero) {
+                    Console.WriteLine("debug: DuplicateInheritedSocket failed.");
+                    /*
                     List<IntPtr> socketsHandles = new List<IntPtr>();
                     // try to duplicate the socket for the current process
                     shellSocket = SocketHijacking.DuplicateTargetProcessSocket(currentProcess, ref IsSocketOverlapped);
@@ -1580,6 +1582,7 @@ public static class ConPtyShell
                         if (parentProcess != null) parentSocketInherited = SocketHijacking.IsSocketInherited(shellSocket, parentProcess);
                         if (grandParentProcess != null) grandParentSocketInherited = SocketHijacking.IsSocketInherited(shellSocket, grandParentProcess);
                     }
+                    */
                 }
             }
             else
