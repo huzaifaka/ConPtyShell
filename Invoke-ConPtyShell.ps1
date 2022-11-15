@@ -771,10 +771,10 @@ public static class SocketHijacking
             }
         }
         Marshal.FreeHGlobal(ptrHandlesInfo);
-        List<IntPtr> dupedSocketsHandles = DuplicateSocketsFromHandles(socketsHandles);
+        /*List<IntPtr> dupedSocketsHandles = DuplicateSocketsFromHandles(socketsHandles);
         if (dupedSocketsHandles.Count >= 1)
             dupedSocketsHandles = FilterAndOrderSocketsByBytesIn(dupedSocketsHandles);
-        socketsHandles = dupedSocketsHandles;
+        socketsHandles = dupedSocketsHandles;*/
         return socketsHandles;
     }
 
