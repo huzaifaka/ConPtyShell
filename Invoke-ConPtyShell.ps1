@@ -780,7 +780,8 @@ public static class SocketHijacking
 
     public static IntPtr GetInheritedSocket(List<IntPtr> currentProcessSockets, List<IntPtr> parentProcessSockets) {
         IntPtr inheritedSocket = IntPtr.Zero;
-        
+        Console.WriteLine(" currentProcessSockets count = " + currentProcessSockets.Count.ToString());
+        Console.WriteLine(" parentProcessSockets count = " + parentProcessSockets.Count.ToString());
         foreach (IntPtr currentSocketHandle in currentProcessSockets)
         {
             SOCKADDR_IN sockaddrCurrentProcess = new SOCKADDR_IN();
